@@ -1,108 +1,205 @@
 
+from simpleai.search import SearchProblem, astar
 
-# todas las coordenadas son en formato (fila, columna)
-acciones = planear_rover(
-    rover_inicio=(0, 0),
-    bateria_inicial=20,
-    zonas_sombra=[(0, 1), (0, 2)],
-    muestras_igneas=[(1, 1), (1, 2)],
-    muestras_sedimentarias=[(2, 3)],
-)
+BATERIA_MAX = 20
 
+class Ares1MarsRover(SearchProblem):
+    def __init__(self, initial_state, zonas_sombra):
+        # Almacenamos las zonas de sombra en el objeto para no arrastrarlas en el estado
+        self.zonas_sombra = frozenset(zonas_sombra)
+        super().__init__(initial_state)
 
-def is_goal(self, state):
-    if state.carga_muestras == [] and state.muestras_igneas == [] and state.muestras_sedimentarias == []:
-        return True
-    else:        
-        return False
+    def actions(self, state):
+        accionesPosibles = []
+        (
+            posicionRover,
+            bateria,
+            taladroEquipado,
+            cantidadAlmacenada,
+            muestrasIgneas,
+            muestrasSedimentarias,
+        ) = state
 
+        muestras_restantes = len(muestrasIgneas) + len(muestrasSedimentarias)
 
-def actions(self, state): 
-    acciones
-    # Agregar acciones de movimiento
-    for fila, columna in [(-1, 0), (1, 0), (0, -1), (0, 1)]:  # Arriba, abajo, izquierda, derecha
-        new_row = state.posicion[0] + fila
-        new_col = state.posicion[1] + columna
-        if state.bateria > 2 and (0 <= new_row < 4 and 0 <= new_col < 4):  # Verificar límites del mapa
-            acciones.append("Moverse", (new_row, new_col))
+        # 1 Recolectar (consume 3 batería, requiere espacio y taladro correcto)
+        if bateria - 3 > 0 and cantidadAlmacenada < 2:
+            if posicionRover in muestrasIgneas and taladroEquipado == "termico":
+                accionesPosibles.append(("recolectar", "ignea"))
+            if posicionRover in muestrasSedimentarias and taladroEquipado == "percusion":
+                accionesPosibles.append(("recolectar", "sedimentaria"))
+
+        # 2 Depositar (consume 1 bateria. Regla: 2 muestras, o 1 si es la última del mapa)
+        if bateria - 1 > 0 and cantidadAlmacenada > 0:
+            if cantidadAlmacenada == 2 or (cantidadAlmacenada == 1 and muestras_restantes == 0):
+                accionesPosibles.append(("depositar", None))
+
+        # 3 Acciones de taladro (solo si hay muestras de ese tipo en el mapa y no lo tiene equipado)
+        if bateria - 1 > 0:
+            if len(muestrasIgneas) > 0 and taladroEquipado != "termico":
+                accionesPosibles.append(("equipar", "termico"))
+            if len(muestrasSedimentarias) > 0 and taladroEquipado != "percusion":
+                accionesPosibles.append(("equipar", "percusion"))
+
+        # 4 movimientos simples (consume 1 bateria)
+        if bateria - 1 > 0:
+            r, c = posicionRover
+            for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+                accionesPosibles.append(("moverse", (nr, nc)))
+
+        # 5 sobremarcha (consume 4 bateria)
+        if bateria - 4 > 0:
+            r, c = posicionRover
+            for nr, nc in ((r + 2, c), (r - 2, c), (r, c + 2), (r, c - 2)):
+                accionesPosibles.append(("sobremarcha", (nr, nc)))
+
+        # 6 recargar (no consume, suma hasta 20. Prohibido en sombras)
+        if posicionRover not in self.zonas_sombra and bateria < BATERIA_MAX:
+            accionesPosibles.append(("recargar", None))
+
+        return accionesPosibles
+
+    def result(self, state, action):
+        (
+            posicionRover,
+            bateria,
+            taladroEquipado,
+            cantidadAlmacenada,
+            muestrasIgneas,
+            muestrasSedimentarias,
+        ) = state
+
+        tipoAccion, parametro = action
+
+        if tipoAccion == "moverse":
+            return (parametro, bateria - 1, taladroEquipado, cantidadAlmacenada, muestrasIgneas, muestrasSedimentarias)
+        
+        elif tipoAccion == "sobremarcha":
+            return (parametro, bateria - 4, taladroEquipado, cantidadAlmacenada, muestrasIgneas, muestrasSedimentarias)
+        
+        elif tipoAccion == "equipar":
+            return (posicionRover, bateria - 1, parametro, cantidadAlmacenada, muestrasIgneas, muestrasSedimentarias)
+        
+        elif tipoAccion == "recolectar":
+            if parametro == "ignea":
+                return (posicionRover, bateria - 3, taladroEquipado, cantidadAlmacenada + 1, muestrasIgneas - {posicionRover}, muestrasSedimentarias)
+            else:
+                return (posicionRover, bateria - 3, taladroEquipado, cantidadAlmacenada + 1, muestrasIgneas, muestrasSedimentarias - {posicionRover})
+        
+        elif tipoAccion == "depositar":
+            return (posicionRover, bateria - 1, taladroEquipado, 0, muestrasIgneas, muestrasSedimentarias)
+        
+        elif tipoAccion == "recargar":
+            return (posicionRover, min(bateria + 10, BATERIA_MAX), taladroEquipado, cantidadAlmacenada, muestrasIgneas, muestrasSedimentarias)
+
+        return state
+
+    def cost(self, state1, action, state2):
+        tipoAccion, _ = action
+        if tipoAccion == "depositar":
+            return state1[3]  # cantidadAlmacenada del estado de origen
+        
+        costos = {
+            "moverse": 1,
+            "sobremarcha": 1,
+            "recolectar": 2,
+            "equipar": 3,
+            "recargar": 4
+        }
+        return costos.get(tipoAccion, 0)
+
+    def is_goal(self, state):
+        return len(state[4]) == 0 and len(state[5]) == 0 and state[3] == 0 and state[1] > 0
+
+    def heuristic(self, state):
+
+        posicionRover, bateria, taladroEquipado, cantidadAlmacenada, muestrasIgneas, muestrasSedimentarias = state
+        
+        nIgn = len(muestrasIgneas)
+        nSed = len(muestrasSedimentarias)
+        totalMuestras = nIgn + nSed
+
+        if totalMuestras == 0 and cantidadAlmacenada == 0:
+            return 0
+
+        if totalMuestras == 0:
+            return cantidadAlmacenada
+
+        # 1. Estimación optimista de tiempos de herramientas
+        if nIgn > 0 and nSed > 0:
+            equipoTiempo = 6 if taladroEquipado is None or taladroEquipado == "ninguno" else 3
+            equipoBateria = 2 if taladroEquipado is None or taladroEquipado == "ninguno" else 1
+        elif (nIgn > 0 and taladroEquipado != "termico") or (nSed > 0 and taladroEquipado != "percusion"):
+            equipoTiempo = 3
+            equipoBateria = 1
         else:
-            acciones.append(None)  # Acción no válida fuera del mapa
-        return acciones
-    
-    
-    # Agregar acción de sobremarcha
-    for fila, columna in [(-2, 0), (2, 0), (0, -2), (0, 2)]:  # Arriba, abajo, izquierda, derecha
-        new_row = state.posicion[0] + fila
-        new_col = state.posicion[1] + columna
-        if state.bateria > 5 and (2 <= new_row < 3 and 2 <= new_col < 3):  # Verificar límites del mapa
-            acciones.append("Sobremarcha", (new_row, new_col))
-        else:
-            acciones.append(None)  # Acción no válida fuera del mapa
-        return acciones
-   
-    # Agregar acción de equipar taladro
-    if state.bateria > 3 and state.taladro_activo is None:
-        acciones.append("Equipar taladro", "térmico")
-        return acciones
-    elif (state.taladro_activo == "percusión" or planear_rover.rover_inicio in state.muestras_igneas) and state.bateria > 3:
-        acciones.append("Equipar taladro", "térmico")
-        return acciones
-    elif (state.taladro_activo == "térmico" or planear_rover.rover_inicio in state.muestras_sedimentarias) and state.bateria > 3:
-        acciones.append("Equipar taladro", "percusión")
-        return acciones
-    else:
-        acciones.append(None)  # Acción no válida si ya tiene el taladro correcto equipado
-    
-    # Agregar acción de perforar y recolectar
-    if state.bateria > 5 and (state.posicion in state.muestras_igneas and state.taladro_activo == "térmico" and len(state.carga_muestras) < 2):
-        acciones.append("Perforar y recolectar", "ignea")
-        return acciones
-    elif state.bateria > 5 and state.posicion in state.muestras_sedimentarias and state.taladro_activo == "percusión" and len(state.carga_muestras) < 2:
-        acciones.append("Perforar y recolectar", "sedimentaria")
-        return acciones
+            equipoTiempo = 0
+            equipoBateria = 0
 
-
-
-    # Agregar acción de depositar cápsula con muestras
-    if state.bateria > 3 and (len(state.carga_muestras) == 2 or (len(state.carga_muestras) > 0 and state.muestras_igneas == [] and state.muestras_sedimentarias == [])):
-        acciones.append("Depositar cápsula con muestras", None)
-        return acciones
-
-    
-    # Agregar acción de desplegar paneles solares
-    if state.posicion not in [planear_rover.zonas_sombra] and (10 >= state.bateria > 0):  # Verificar que no esté en zona de sombra y que tenga 10 o menos de batería, para evitar desperdiciar tiempo recargando cuando no es necesario
-        acciones.append("Desplegar paneles solares y recargar batería", None)
-        planear_rover.bateria_inicial = min(state.bateria + 10, 20)  # Recargar batería sin exceder el límite máximo
-        return acciones
-    else:
-        acciones.append(None)  # Acción no válida en zona de sombra o si la batería está llena o agotada
-
+        # 2. Cálculo del Árbol de Expansión Mínima (MST) usando algoritmo de Prim
+        allPos = [posicionRover] + list(muestrasIgneas) + list(muestrasSedimentarias)
+        n = len(allPos)
+        inTree = [False] * n
+        minEdge = [float("inf")] * n
+        minEdge[0] = 0
+        mstDist = 0
+        
+        for _ in range(n):
+            u = -1
+            for i in range(n):
+                if not inTree[i] and (u == -1 or minEdge[i] < minEdge[u]):
+                    u = i
+            inTree[u] = True
+            mstDist += minEdge[u]
             
+            for v in range(n):
+                if not inTree[v]:
+                    d = abs(allPos[u][0] - allPos[v][0]) + abs(allPos[u][1] - allPos[v][1])
+                    if d < minEdge[v]:
+                        minEdge[v] = d
 
-def cost(self, estadoactual, acciones):
-    if acciones[0] == "Moverse":
-        return 1
-    elif acciones[0] == "Sobremarcha":
-        return 4
-    elif acciones[0] == "Equipar taladro":
-        return 1
-    elif acciones[0] == "Perforar y recolectar":
-        return 3
-    elif acciones[0] == "Depositar cápsula con muestras":
-        return len(estadoactual.carga_muestras)  # Costo de 1 por cada muestra entregada
-    elif acciones[0] == "Desplegar paneles solares y recargar batería":
-        return 0  # No consume batería, solo tiempo
-    else:
-        return float('inf')  # Acción no válida, costo infinito
- 
+        # 3. Costos fijos e inevitables en acciones operativas
+        collectTiempo = totalMuestras * 2
+        collectBateria = totalMuestras * 3
+        depositTiempo = totalMuestras + cantidadAlmacenada
+        depositBateria = (totalMuestras + cantidadAlmacenada + 1) // 2
 
+        otherTiempo = equipoTiempo + collectTiempo + depositTiempo
+        otherBateria = equipoBateria + collectBateria + depositBateria + 1
 
-def result(self, estadoactual, accion):
-    carga_muestras = []
+        # 4. Simulación del balance óptimo entre sobremarchas y movimientos simples
+        best_h = float("inf")
+        max_overdrives = mstDist // 2
 
+        for k in range(max_overdrives + 1):
+            travelTiempo = mstDist - k
+            travelBateria = 2 * k + mstDist
+            totalBateriaNeeded = travelBateria + otherBateria
+            extraBateria = totalBateriaNeeded - bateria
+            recharges = (extraBateria + 9) // 10 if extraBateria > 0 else 0
+            
+            hActual = travelTiempo + otherTiempo + recharges * 4
+            if hActual < best_h:
+                best_h = hActual
 
-def heuristic(state):    # Heurística basada en la cantidad de muestras restantes , costo de recolectarlas y soltarlas en la cápsula, ajustable según la importancia de cada muestra.
+        return best_h
+
+def planear_rover(rover_inicio, bateria_inicial, zonas_sombra, muestras_igneas, muestras_sedimentarias):
+    # Definimos el estado inicial usando frozenset para las muestras
+    estado_inicial = (
+        rover_inicio,
+        bateria_inicial,
+        "ninguno", # taladroEquipado
+        0,         # cantidadAlmacenada
+        frozenset(muestras_igneas),
+        frozenset(muestras_sedimentarias),
+    )
+
+    problema = Ares1MarsRover(estado_inicial, zonas_sombra)
+    resultado = astar(problema, graph_search=True)
     
-    muestras_restantes = len(state.muestras_igneas) + len(state.muestras_sedimentarias)
-    return len(muestras_restantes) * 4  # Asignar un costo de 4 por cada muestra restante, 3 es el costo de recolectar cada muestra y 1 el costo de depositarla en la cápsula (en caso que haya una sola muestra, este parado sobre ella, y tenga el taladro correspondiente).
-
+    if resultado is None:
+        return []
+        
+    acciones = [accion for accion, _ in resultado.path() if accion is not None]
+    return acciones

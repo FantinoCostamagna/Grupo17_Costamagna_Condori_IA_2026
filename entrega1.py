@@ -1,5 +1,6 @@
-
+# entrega1.py
 from simpleai.search import SearchProblem, astar
+
 
 BATERIA_MAX = 20
 
@@ -53,8 +54,8 @@ class Ares1MarsRover(SearchProblem):
             for nr, nc in ((r + 2, c), (r - 2, c), (r, c + 2), (r, c - 2)):
                 accionesPosibles.append(("sobremarcha", (nr, nc)))
 
-        # 6 recargar (no consume, suma hasta 20. Prohibido en sombras)
-        if posicionRover not in self.zonas_sombra and bateria < BATERIA_MAX:
+        # 6 recargar (no consume,recarga cuando sea menor o igual a 10. Prohibido en sombras)
+        if posicionRover not in self.zonas_sombra and bateria <= 10:
             accionesPosibles.append(("recargar", None))
 
         return accionesPosibles

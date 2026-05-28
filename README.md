@@ -1,1 +1,0 @@
-# Grupo17_Costamagna_Condori_IA_2026

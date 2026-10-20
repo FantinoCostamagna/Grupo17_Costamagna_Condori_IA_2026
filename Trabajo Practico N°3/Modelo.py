@@ -4,9 +4,9 @@ from sklearn.model_selection import KFold
 from sklearn.ensemble import RandomForestClassifier
 
 
-train = pd.read_csv('datos/solicitudes_train.csv')
-test = pd.read_csv('datos/solicitudes_test.csv')
-bancario = pd.read_csv('datos/comportamiento_bancario.csv')
+train = pd.read_csv('C:\\Users\\tamar\\Downloads\\Grupo17_Costamagna_Condori_IA_2026-main\\Trabajo Practico N°3\\datos\\solicitudes_train.csv')
+test = pd.read_csv('C:\\Users\\tamar\\Downloads\\Grupo17_Costamagna_Condori_IA_2026-main\\Trabajo Practico N°3\\datos\\solicitudes_test.csv')
+bancario = pd.read_csv('C:\\Users\\tamar\\Downloads\\Grupo17_Costamagna_Condori_IA_2026-main\\Trabajo Practico N°3\\datos\\comportamiento_bancario.csv')
 
 bancarioAgg = bancario.groupby('IDUsuario').agg(
     SaldoPromedioGeneral=('SaldoPromedioMensual', 'mean'),
@@ -17,45 +17,47 @@ bancarioAgg = bancario.groupby('IDUsuario').agg(
 train = train.merge(bancarioAgg, on='IDUsuario', how='left').fillna(0)
 test = test.merge(bancarioAgg, on='IDUsuario', how='left').fillna(0)
 
-features = ['MontoSolicitado', 'TasaInteres', 'Ingreso_Mensual', 
+features = ['MontoSolicitado', 'TasaInteres', 'IngresoMensual', 
             'SaldoPromedioGeneral', 'MaxDiasAtraso', 'PromDiasAtraso']
 X = train[features]
 y = train['EstadoFinal']
 Xtest = test[features]
 
-kf = KFold(nSplits=5, shuffle=True, randomState=42)
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
 testPreds = np.zeros(len(test))
 
 for trainIdx, validx in kf.split(X, y):
     Xtr, ytr = X.iloc[trainIdx], y.iloc[trainIdx]
     
     model = RandomForestClassifier(
-        nEstimators=100,
-        maxDepth=6,          
-        minSamplesSplit=20, 
-        randomState=42
+        n_estimators=100,
+        max_depth=6,          
+        min_samples_split=20, 
+        random_state=42
     )
     model.fit(Xtr, ytr)
-    testPreds += model.predict_proba(Xtest)[:, 1] / kf.nSplits
+    testPreds += model.predict_proba(Xtest)[:, 1] / kf.n_splits
 
 
 test['ProbPago'] = testPreds
-test['EsperanzaMatematica'] = (test['ProbPago'] * test['MontoSolicitado'] * test['TasaInteres']) - \
-                               ((1 - test['ProbPago']) * test['MontoSolicitado'])
+test['EsperanzaMatematica'] = ((test['ProbPago'] * (test['MontoSolicitado'] * test['TasaInteres'])) - \
+                               ((1 - test['ProbPago']) * test['MontoSolicitado'])) / test['MontoSolicitado']
 
+test['EsperanzaMatematica2'] = (((test['ProbPago'] * (test['MontoSolicitado'] * test['TasaInteres'])) - \
+                               ((1 - test['ProbPago']) * test['MontoSolicitado'])) / test['MontoSolicitado']) * test['SaldoPromedioGeneral']
 
-test = test.sortValues(by='EsperanzaMatematica', ascending=False)
+test = test.sort_values(by= ['EsperanzaMatematica2'], ascending=False)
 
 presupuestoMaximo = 2000000
 presupuestoAcumulado = 0
 decisiones = []
 
 for idx, row in test.iterrows():
-    if presupuestoAcumulado + row['MontoSolicitado'] <= presupuestoMaximo:
-        decisiones.append({'IDSolicitud': row['IDSolicitud'], 'Aprobado': 1})
+    if  presupuestoAcumulado + row['MontoSolicitado'] <= presupuestoMaximo:
+        decisiones.append({'ID_Solicitud': row['IDSolicitud'], 'Decision_Aprobacion': 1})
         presupuestoAcumulado += row['MontoSolicitado']
     else:
-        decisiones.append({'IDSolicitud': row['IDSolicitud'], 'Aprobado': 0})
+        decisiones.append({'ID_Solicitud': row['IDSolicitud'], 'Decision_Aprobacion': 0})
 
 dfSub = pd.DataFrame(decisiones)
 dfSub.to_csv('submission.csv', index=False)

@@ -12,13 +12,13 @@ bancarioAgg = bancario.groupby('IDUsuario').agg(
     SaldoPromedioGeneral=('SaldoPromedioMensual', 'mean'),
     MaxDiasAtraso=('DiasAtrasoOtrasDeudas', 'max'),
     PromDiasAtraso=('DiasAtrasoOtrasDeudas', 'mean')
-).reset_index()
+).reset_index() # Agrupa por IDUsuario y calcula las estadísticas que consideramos importantes para el modelo, como el saldo promedio general, el máximo de días de atraso y el promedio de días de atraso. 
 
 train = train.merge(bancarioAgg, on='IDUsuario', how='left').fillna(0)
 test = test.merge(bancarioAgg, on='IDUsuario', how='left').fillna(0)
 
 features = ['MontoSolicitado', 'TasaInteres', 'IngresoMensual', 
-            'SaldoPromedioGeneral', 'MaxDiasAtraso', 'PromDiasAtraso']
+            'SaldoPromedioGeneral', 'MaxDiasAtraso', 'PromDiasAtraso'] #
 X = train[features]
 y = train['EstadoFinal']
 Xtest = test[features]
@@ -40,13 +40,12 @@ for trainIdx, validx in kf.split(X, y):
 
 
 test['ProbPago'] = testPreds
-test['EsperanzaMatematica'] = ((test['ProbPago'] * (test['MontoSolicitado'] * test['TasaInteres'])) - \
-                               ((1 - test['ProbPago']) * test['MontoSolicitado'])) / test['MontoSolicitado']
+Retorno_por_inversion_/_perdida_total = ((test['ProbPago'] * (test['MontoSolicitado'] * test['TasaInteres'])) - \
+                               ((1 - test['ProbPago']) * test['MontoSolicitado']))
 
-test['EsperanzaMatematica2'] = (((test['ProbPago'] * (test['MontoSolicitado'] * test['TasaInteres'])) - \
-                               ((1 - test['ProbPago']) * test['MontoSolicitado'])) / test['MontoSolicitado']) * test['SaldoPromedioGeneral']
+test['EsperanzaMatematica'] = (test['Retorno_por_inversion_/_perdida_total'] / test['MontoSolicitado']) * test['SaldoPromedioGeneral'] #Este calculo lo que nos da es el retorno esperado por cada unidad de dinero invertida, teniendo en cuenta tambien el saldo promedio del usuario.
 
-test = test.sort_values(by= ['EsperanzaMatematica2'], ascending=False)
+test = test.sort_values(by= ['EsperanzaMatematica'], ascending=False)
 
 presupuestoMaximo = 2000000
 presupuestoAcumulado = 0

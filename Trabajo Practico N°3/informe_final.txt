@@ -1,0 +1,23 @@
+                                                    Informe del Modelo
+
+        Para poder desarrollar el modelo de aceptación de prestamos, lo primero que hicimos fue analizar los datos que nos dieron,  tanto de comportamiento bancario, y los datos que tenemos de las solicitudes. Lo que destacamos importante fue el saldopromediogeneral y los diasatrasootrasdeudas de el comportamiento bancario, que ya con esto nos permite tener una perspectiva del historial crediticio de cada usuario solicitante y nos sirve para el modelo. 
+        
+        Decidimos hacer un merge (lo integramos con ID_Usuario) de estos datos que destacamos importantes, con los datos que tenemos en solicitudes (train y test), para que el modelo pueda usar estos conjuntos de datos. En el caso que falten datos, lo reemplazamos por cero para evitar algun error.
+
+        En cuanto al modelo, utilizamos el algoritmo de aprendizaje supervisado RANDOM FOREST CLASSIFIER. Tambien probamos con regresión logistica, finalmente obtuvimos mejores resultados con random forest.
+        
+        Las variables que usamos para entrenar al modelo son: monto solicitado, tasa de interés, ingreso mensual, saldo promedio general, máximo de días de atraso y promedio de días de atraso.
+
+        Al modelo lo configuramos con 100 árboles de decisión para combinar múltiples predicciones y buscar mayor estabilidad. Limitamos la profundidad máxima de seis niveles para limitar la complejidad de los árboles y un mínimo de 20 muestras para dividir cada nodo, con el objetivo de reducir el overfitting. Además, se entrenaron cinco modelos utilizando distintas particiones del conjunto de entrenamiento y se promediaron los resultados para obtener las predicciones finales.
+
+        Una vez que ya obtenemos la probabilidad de pago de cada prestamos solicitado, calculamos la esperanza matematica, que estos fue lo que mas ajustamos y cambiamos para lograr un mayor resultado, a veces lograbamos mejorar los resultados, y en otras ocasiones se desmejoraba. 
+
+        Ya con un calculo bastante simple de la esperanza matematica , lograbamos buenos resultados.
+        El primero fue calcular los interes ganados en el caso que paguen el prestamo, menos el monto que perderiamos en caso que no se pague, ordenandolo de manera descendiente, priorizando asi los positivos. Ya con esto logramos una ganancia de aproximadamente $133.000.
+
+        Pudimos mejorarlo agregando una variable mas al calculo, que fue usando la anterior esperanza matematica, y dividir este resultado, por el monto solicitado, esto lo que nos da como resultado es el retorno esperado por cada unidad de dinero  prestada. Funcionó porque priorizamos que prestamos nos pagan mas, considerando varibales importantes como interes ganado, monto solicitado, tasa de interes y la probabilidad de pago.
+
+        Y obtuvimos una mejora mas, pequeña en comparación del salto del modelo 1 al modelo 2. Basicamente fue una mejora al modelo 2, a la esperanza matematica de este modelo, multiplicamos ese resultado, por el saldopromediogeneral, que ajusta un poco mas el resultado teniendo en cuenta que si el saldo que tiene en el banco es mayor, vamos a priorizar a ese usuario.
+
+        Por ultimo, se aprueban las solicitudes que puedan incorporarse, sin superar el limite que nos plantearon. El resto se rechaza.
+        No es un modelo perfecto, se puede seguir puliendo con un mejor calculo de variables, agregando demas variables, mas alla de esto, es una muy buena herramienta que ayuda a la toma de decisiones.

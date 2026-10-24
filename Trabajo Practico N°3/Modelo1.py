@@ -3,11 +3,9 @@ import numpy as np
 from sklearn.model_selection import KFold
 from sklearn.ensemble import RandomForestClassifier
 
-
-
-train = pd.read_csv('C:\\Users\\tamar\\Downloads\\Grupo17_Costamagna_Condori_IA_2026-main\\Trabajo Practico N°3\\datos\\solicitudes_train.csv')
-test = pd.read_csv('C:\\Users\\tamar\\Downloads\\Grupo17_Costamagna_Condori_IA_2026-main\\Trabajo Practico N°3\\datos\\solicitudes_test.csv')
-bancario = pd.read_csv('C:\\Users\\tamar\\Downloads\\Grupo17_Costamagna_Condori_IA_2026-main\\Trabajo Practico N°3\\datos\\comportamiento_bancario.csv')
+train = pd.read_csv('datos\\solicitudes_train.csv')
+test = pd.read_csv('datos\\solicitudes_test.csv')
+bancario = pd.read_csv('datos\\comportamiento_bancario.csv')
 
 bancarioAgg = bancario.groupby('IDUsuario').agg(
     SaldoPromedioGeneral=('SaldoPromedioMensual', 'mean'),
